@@ -81,7 +81,7 @@ def score_windows(fc, data, idx, t, clim, std, wins) -> dict:
             "ratio": np.nanmean(ratios, axis=0), "caus_pts": float(np.mean([c[0] for c in caus])),
             "checks": {k: float(np.mean([r[i][k] for _, r, _ in caus for i in range(2)]))
                        for k in ("nonzero", "localized", "propagates", "stable", "no_teleport")},
-            "null_ok": float(np.mean([c[2] for c in caus])), "bad": bad, "walls": walls}
+            "null_ok": float(np.mean([c[2] for c in caus])), "bad": bad, "walls": walls, "ss": ss, "csi": csis}
 
 
 if __name__ == "__main__":

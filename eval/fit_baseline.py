@@ -18,12 +18,18 @@ LEADS = 14                                                             # contrac
 
 
 def load(path=DATA):
-    """Daily fields [N,6,32,36] f4, yyyymmdd ints, climatology rows 0..365 (Feb 29 has its own row, like the kit)."""
-    ds = xr.open_dataset(path)
-    t = ds["time"].to_index()
+    """Daily fields [N,6,32,36] f4, yyyymmdd ints, climatology rows 0..365 (Feb 29 has its own row, like the kit).
+    Reads the kit's .nc, or an .npz from `python -m monsoon_r1.build_dataset train` (rain clamped >= 0 as the kit's merge does)."""
+    path = Path(path)
+    if path.suffix == ".npz":
+        import pandas as pd
+        z = np.load(path); data = z["data"].astype("f4"); data[:, 1] = np.maximum(data[:, 1], 0.0)
+        t = pd.to_datetime(z["dates"].astype(str), format="%Y%m%d")
+    else:
+        ds = xr.open_dataset(path); data = ds["data"].values.astype("f4"); t = ds["time"].to_index()
     ymd = (t.year * 10000 + t.month * 100 + t.day).to_numpy()
     idx = (t.day_of_year - 1 + ((~t.is_leap_year) & (t.month > 2))).to_numpy()   # non-leap Mar 1 -> row 60
-    return ds["data"].values.astype("f4"), ymd, idx, t
+    return data, ymd, idx, t
 
 
 def main():
