@@ -2,8 +2,11 @@ import { useEffect, useRef, useState } from "react";
 import { fetchHealth, fetchSample, fetchSamples, simulate, type Sample, type SampleInfo } from "./api";
 import { CHANNEL_INFO, toDisplayField } from "./colors";
 import GridMap, { type Wind } from "./GridMap";
-import { CHANNELS, U10, V10, type States } from "./grid";
+import { CHANNELS, U10, V10, type Box, type States } from "./grid";
 import Legend from "./Legend";
+import Multiverse from "./Multiverse";
+import { buildPerturbation, describeShock, PRESETS, type Shock } from "./shock";
+import ShockBuilder from "./ShockBuilder";
 
 const STEPS = 10;
 const PLAY_MS = 900;
@@ -26,6 +29,13 @@ export default function App() {
   const [playing, setPlaying] = useState<boolean>(false);
   const [source, setSource] = useState<Source>("forecast");
   const [showWind, setShowWind] = useState<boolean>(true);
+
+  const [shock, setShock] = useState<Shock>(PRESETS[0].shock);
+  const [drawing, setDrawing] = useState<boolean>(false);
+  const [shocked, setShocked] = useState<States | null>(null);
+  const [shockedWith, setShockedWith] = useState<Shock | null>(null);
+  const [shockMs, setShockMs] = useState<number | null>(null);
+  const [shockRunning, setShockRunning] = useState<boolean>(false);
 
   // Counts sample loads so a slow old reply cannot overwrite a newer one.
   const loadCounter = useRef(0);
@@ -55,6 +65,9 @@ export default function App() {
     setLoading(true);
     setBaseline(null);
     setBaselineMs(null);
+    setShocked(null);
+    setShockedWith(null);
+    setShockMs(null);
     setError("");
 
     async function load() {
@@ -72,6 +85,41 @@ export default function App() {
         if (myLoad === loadCounter.current) setLoading(false);
       });
   }, [sampleId]);
+
+  // Shocked forecast: same input, plus the perturbation, live on the model server.
+  async function runShock() {
+    if (sample === null) {
+      return;
+    }
+    const myLoad = loadCounter.current;
+    const shockToRun = shock;
+    const lastDay = sample.init_states[sample.init_states.length - 1];
+    const perturbation = buildPerturbation(lastDay, shockToRun);
+    setShockRunning(true);
+    setError("");
+    try {
+      const result = await simulate(sample, STEPS, perturbation);
+      if (myLoad !== loadCounter.current) return;
+      setShocked(result.rollout);
+      setShockedWith(shockToRun);
+      setShockMs(result.inference_ms);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setShockRunning(false);
+    }
+  }
+
+  function clearShock() {
+    setShocked(null);
+    setShockedWith(null);
+    setShockMs(null);
+  }
+
+  function onBoxDrawn(box: Box) {
+    setShock({ ...shock, box: box });
+    setDrawing(false);
+  }
 
   // Play button: step through days 1..10 and loop.
   useEffect(() => {
@@ -167,11 +215,42 @@ export default function App() {
             field={mainField}
             scale={info.scale}
             wind={mainWind}
+            box={shock.box}
+            drawing={drawing}
+            onBoxDrawn={onBoxDrawn}
             height={520}
           />
           <Legend scale={info.scale} />
         </div>
+        <ShockBuilder
+          shock={shock}
+          onChange={setShock}
+          drawing={drawing}
+          onToggleDraw={() => setDrawing(!drawing)}
+          onRun={runShock}
+          onClear={clearShock}
+          running={shockRunning}
+          canRun={sample !== null && baseline !== null}
+          shockMs={shockMs}
+        />
       </section>
+      {shockedWith && <div className="shock-summary">Shock applied: {describeShock(shockedWith)}</div>}
+
+      {baseline && shocked && shockedWith ? (
+        <Multiverse
+          baseline={baseline}
+          shocked={shocked}
+          channel={channel}
+          day={day}
+          box={shockedWith.box}
+          showWind={showWind}
+          onDayClick={setDay}
+        />
+      ) : (
+        <section className="panel placeholder">
+          Pick a preset or draw a box, then press <b>Run shocked forecast</b> to open the multiverse view.
+        </section>
+      )}
     </div>
   );
 }

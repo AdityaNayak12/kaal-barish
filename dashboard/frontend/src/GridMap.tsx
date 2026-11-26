@@ -81,6 +81,8 @@ export default function GridMap(props: Props) {
   const boxRef = useRef<L.Rectangle | null>(null);
   const fieldRef = useRef<Field | null>(null);
   const unitRef = useRef<string>("");
+  // True while this map is moved by code to follow another map; such moves are not reported back.
+  const followingRef = useRef<boolean>(false);
   const callbacksRef = useRef({ onBoxDrawn, onViewChange });
   const [hover, setHover] = useState<string>("");
 
@@ -144,7 +146,7 @@ export default function GridMap(props: Props) {
     map.on("mouseout", () => setHover(""));
     map.on("moveend", () => {
       const callback = callbacksRef.current.onViewChange;
-      if (callback) {
+      if (callback && !followingRef.current) {
         const center = map.getCenter();
         callback({ lat: center.lat, lon: center.lng, zoom: map.getZoom() });
       }
@@ -222,7 +224,9 @@ export default function GridMap(props: Props) {
     const same =
       Math.abs(center.lat - view.lat) < 1e-4 && Math.abs(center.lng - view.lon) < 1e-4 && map.getZoom() === view.zoom;
     if (!same) {
+      followingRef.current = true;
       map.setView([view.lat, view.lon], view.zoom, { animate: false });
+      followingRef.current = false;
     }
   }, [view]);
 
