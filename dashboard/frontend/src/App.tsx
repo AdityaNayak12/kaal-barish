@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { fetchHealth, fetchSample, fetchSamples, simulate, type Sample, type SampleInfo } from "./api";
+import { fetchGrid, fetchHealth, fetchSample, fetchSamples, simulate, type Sample, type SampleInfo } from "./api";
 import { CHANNEL_INFO, toDisplayField } from "./colors";
 import GridMap, { type Wind } from "./GridMap";
 import { CHANNELS, U10, V10, type Box, type States } from "./grid";
+import { assignRegions } from "./impact";
+import ImpactPanel from "./ImpactPanel";
 import Legend from "./Legend";
 import Multiverse from "./Multiverse";
 import { buildPerturbation, describeShock, PRESETS, type Shock } from "./shock";
@@ -19,6 +21,7 @@ export default function App() {
   const [sample, setSample] = useState<Sample | null>(null);
   const [modelName, setModelName] = useState<string>("");
   const [error, setError] = useState<string>("");
+  const [regionOf, setRegionOf] = useState<number[][] | null>(null);
 
   const [baseline, setBaseline] = useState<States | null>(null);
   const [baselineMs, setBaselineMs] = useState<number | null>(null);
@@ -52,6 +55,9 @@ export default function App() {
           setSampleId(list[0].id);
         }
       })
+      .catch((e) => setError(String(e)));
+    fetchGrid()
+      .then((grid) => setRegionOf(assignRegions(grid.land_mask)))
       .catch((e) => setError(String(e)));
   }, []);
 
@@ -251,6 +257,8 @@ export default function App() {
           Pick a preset or draw a box, then press <b>Run shocked forecast</b> to open the multiverse view.
         </section>
       )}
+
+      {baseline && regionOf && <ImpactPanel baseline={baseline} shocked={shocked} regionOf={regionOf} />}
     </div>
   );
 }

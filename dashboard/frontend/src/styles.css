@@ -317,3 +317,75 @@ button:disabled {
   color: #5a6473;
   margin-bottom: 12px;
 }
+
+.threshold {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.impact-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1.2fr;
+  gap: 16px;
+}
+
+.ranked ol {
+  margin: 0;
+  padding-left: 22px;
+}
+
+.ranked li {
+  margin-bottom: 6px;
+}
+
+.ranked-name {
+  font-size: 13px;
+}
+
+.ranked-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ranked-bar {
+  height: 8px;
+  border-radius: 2px;
+  min-width: 2px;
+  max-width: 45%;
+}
+
+.ranked-bar.heat {
+  background: #e67e22;
+}
+
+.ranked-value {
+  font-size: 12px;
+  color: #5a6473;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Red for more heat or less rain, blue for the opposite. */
+.worse {
+  color: #b03a2e;
+}
+
+.better {
+  color: #1d6fa5;
+}
+
+.impact table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.impact th,
+.impact td {
+  text-align: left;
+  padding: 4px 6px;
+  border-bottom: 1px solid #eef1f5;
+}

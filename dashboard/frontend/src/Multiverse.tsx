@@ -74,7 +74,12 @@ export default function Multiverse(props: Props) {
       maxAbs = largest;
     }
   }
-  const diffScale = differenceScale(maxAbs, info.scale.unit);
+  // Never zoom the colour range in below the "changed" threshold, so tiny noise stays white.
+  let range = maxAbs;
+  if (range < CHANGE_THRESHOLD[channel]) {
+    range = CHANGE_THRESHOLD[channel];
+  }
+  const diffScale = differenceScale(range, info.scale.unit);
 
   const spread: number[] = [];
   for (let d = 0; d < diffs.length; d++) {
