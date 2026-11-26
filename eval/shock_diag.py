@@ -27,17 +27,21 @@ CTL = {"mode": "off", "n": 0, "i": 0, "stats": []}
 
 
 def _gn_forward(m, x):
-    """GroupNorm that can record per-sample statistics (first n calls of a rollout) and replay them (the rest)."""
+    """GroupNorm that records per-sample statistics in each member's unshocked rollout and replays them in that
+    member's shocked rollout. rollout() runs, per ensemble member, n calls unshocked then n calls shocked."""
     if CTL["mode"] == "off":
         return F.group_norm(x, m.num_groups, m.weight, m.bias, m.eps)
     i = CTL["i"]; CTL["i"] += 1
     xg = x.reshape(x.shape[0], m.num_groups, -1)
-    if CTL["mode"] == "count" or i < CTL["n"]:
+    block, j = divmod(i, CTL["n"]) if CTL["mode"] == "freeze" else (0, i)
+    if block % 2 == 0:
         mean, var = xg.mean(-1, keepdim=True), xg.var(-1, unbiased=False, keepdim=True)
         if CTL["mode"] == "freeze":
+            if j == 0:
+                CTL["stats"] = []
             CTL["stats"].append((mean, var))
     else:
-        mean, var = CTL["stats"][i - CTL["n"]]
+        mean, var = CTL["stats"][j]
     y = ((xg - mean) / torch.sqrt(var + m.eps)).reshape_as(x)
     return y * m.weight[None, :, None, None] + m.bias[None, :, None, None]
 
@@ -51,8 +55,8 @@ def _run(mode, init, doy, pert):
 
 
 def frozen(init, doy, pert):
-    """Shocked rollout whose GroupNorm statistics are the unshocked run's (rollout() runs base, then shocked)."""
-    _run("count", init, doy, None); CTL["n"] = CTL["i"]
+    """Shocked rollout whose GroupNorm statistics are the unshocked run's, member by member."""
+    CTL["n"] = 1; _run("count", init, doy, None); CTL["n"] = CTL["i"] // len(R._load()["members"])
     return _run("freeze", init, doy, pert)
 
 
@@ -83,10 +87,10 @@ def main():
     ap = argparse.ArgumentParser(); ap.add_argument("--stride", type=int, default=5); a = ap.parse_args()
     data, _, _, t = load()
     std = np.array(json.loads((ROOT / "assets" / "stats.json").read_text())["std"], "f4")
-    net = R._load()["net"]
-    for m in net.modules():
-        if isinstance(m, torch.nn.GroupNorm):
-            m.forward = lambda x, m=m: _gn_forward(m, x)
+    for member in R._load()["members"]:
+        for m in member["net"].modules():
+            if isinstance(m, torch.nn.GroupNorm):
+                m.forward = lambda x, m=m: _gn_forward(m, x)
     i = np.arange(len(t))
     # sanity: with a shock that vanishes when added, replayed statistics equal recomputed ones, so frozen == normal.
     # (normal(tiny) != base by up to ~0.02 std: the shocked path round-trips physical units between steps; harmless)
