@@ -28,7 +28,8 @@ def main():
     ap.add_argument("--split", default="train")
     ap.add_argument("--stages", default="1:15,4:6,8:3:16")
     ap.add_argument("--width", type=int, default=64); ap.add_argument("--blocks", type=int, default=3)
-    ap.add_argument("--norm", default="pixel", choices=["pixel", "group"])
+    ap.add_argument("--norm", default="group", choices=["pixel", "group"],
+                    help="group = shipped r2/r4 recipe; pixel = per-cell norm (r3, not shipped)")
     ap.add_argument("--batch", type=int, default=32); ap.add_argument("--lr", type=float, default=1e-3)
     ap.add_argument("--rain-w", type=float, default=0.5); ap.add_argument("--threads", type=int, default=12)
     ap.add_argument("--max-batches", type=int, default=0, help="cap batches per epoch (0 = all; for smoke tests)")
