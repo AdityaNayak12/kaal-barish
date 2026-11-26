@@ -4,22 +4,36 @@ Rules: listen on 0.0.0.0 (not 127.0.0.1), load weights from files next to this o
 the model loaded in memory (a 10-step rollout must return in under 5 s), return finite numbers in physical units.
 Uses the CNN in model/rollout.py when assets/weights.pt exists, else the fallback in engine/baseline.py (CONTRACT.md).
 """
-import argparse
+import argparse, sys
 from pathlib import Path
 import numpy as np
 import uvicorn
 from fastapi import FastAPI, HTTPException, Request
 
-if (Path(__file__).resolve().parent / "assets" / "weights.pt").exists():
-    from model.rollout import rollout
-    MODEL_NAME = "kaal-barish-cnn"
-else:
-    from engine.baseline import rollout
-    MODEL_NAME = "kaal-barish-baseline"
-
 app = FastAPI()
 SHAPE = (6, 32, 36)
 MAX_STEPS = 14
+WARMUP = np.broadcast_to(np.array([295.0, 4.0, 2.0, 1.0, 100500.0, 35.0], "f4")[:, None, None], (3,) + SHAPE)
+
+
+def _pick_model():
+    """CNN if its weights load and give a valid warm-up rollout, else the baseline (a crash at startup scores 0).
+    The warm-up also makes /health answer only once the model is in memory (both models load lazily)."""
+    try:
+        if not (Path(__file__).resolve().parent / "assets" / "weights.pt").exists():
+            raise FileNotFoundError("assets/weights.pt")
+        from model.rollout import rollout
+        if not np.isfinite(rollout(WARMUP, [0.0, 1.0], 1, None)).all():
+            raise ValueError("non-finite warm-up output")
+        return rollout, "kaal-barish-cnn"
+    except Exception as e:                                             # e.g. a Git LFS pointer instead of weights
+        print(f"CNN unavailable ({type(e).__name__}: {str(e)[:200]}), serving the baseline", file=sys.stderr)
+        from engine.baseline import rollout
+        rollout(WARMUP, [0.0, 1.0], 1, None)
+        return rollout, "kaal-barish-baseline"
+
+
+rollout, MODEL_NAME = _pick_model()
 
 
 def _arr(x, shape):
@@ -39,9 +53,6 @@ def simulate(init_states: np.ndarray, doy_sincos, steps: int, perturbation) -> n
     Return [steps,6,32,36] physical units. doy_sincos = [sin, cos] of the day of year of init_states[-1]."""
     return np.asarray(rollout(init_states, doy_sincos, steps, perturbation), dtype="f4")
 
-
-# warm-up so /health only answers once the model is loaded (both models load their assets on first call)
-simulate(np.broadcast_to(np.array([295.0, 4.0, 2.0, 1.0, 100500.0, 35.0], "f4")[:, None, None], (3,) + SHAPE), [0.0, 1.0], 1, None)
 
 
 @app.post("/health")

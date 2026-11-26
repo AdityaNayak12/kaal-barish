@@ -22,7 +22,7 @@ rollout(init_states, doy_sincos, steps, perturbation) -> np.ndarray
 - deterministic, finite, rain >= 0, t2m clamped to 233.15–333.15 K
 
 ## engine/baseline.py (owner: nayak)
-Same signature as model/rollout.py. serve.py uses rollout() if assets/weights.pt exists, else baseline.
+Same signature as model/rollout.py. serve.py uses rollout() if assets/weights.pt loads and its warm-up rollout is finite, else baseline (logged to stderr).
 
 ## Server API (owner: nayak) — python serve.py --port 8000, host 0.0.0.0
 - POST /health → {"status": "ready", "model_name": str}
