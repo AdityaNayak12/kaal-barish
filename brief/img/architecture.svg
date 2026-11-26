@@ -25,7 +25,7 @@
   <text x="620" y="47" text-anchor="middle" font-weight="bold">serve.py</text>
   <text x="620" y="70" text-anchor="middle">FastAPI :8000</text>
   <text x="620" y="90" text-anchor="middle">POST /simulate, /health</text>
-  <text x="620" y="109" text-anchor="middle">output validity gate</text>
+  <text x="620" y="109" text-anchor="middle">validity gate + blend</text>
 
   <!-- CNN ensemble -->
   <rect x="770" y="20" width="220" height="100" rx="8" fill="#fdf1e6" stroke="#b5541b" stroke-width="2"/>
@@ -35,14 +35,14 @@
   <text x="880" y="109" text-anchor="middle">shock limiter 4.5 std</text>
 
   <!-- fallback -->
-  <rect x="770" y="145" width="220" height="45" rx="8" fill="#f4f4f4" stroke="#777" stroke-width="2" stroke-dasharray="6 4"/>
-  <text x="880" y="173" text-anchor="middle">Fallback: linear baseline</text>
+  <rect x="730" y="145" width="260" height="45" rx="8" fill="#f4f4f4" stroke="#777" stroke-width="2" stroke-dasharray="6 4"/>
+  <text x="860" y="173" text-anchor="middle">Linear baseline: blend + fallback</text>
 
   <line x1="210" y1="70" x2="257" y2="70" stroke="#333" stroke-width="2" marker-end="url(#arrow)"/>
   <line x1="470" y1="70" x2="517" y2="70" stroke="#333" stroke-width="2" marker-end="url(#arrow)"/>
   <line x1="720" y1="70" x2="767" y2="70" stroke="#333" stroke-width="2" marker-end="url(#arrow)"/>
-  <path d="M620,120 L620,167 L767,167" fill="none" stroke="#777" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#arrow)"/>
-  <text x="630" y="150" fill="#555" font-size="13">CNN fails or gives NaN</text>
+  <path d="M620,120 L620,167 L727,167" fill="none" stroke="#777" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#arrow)"/>
+  <text x="612" y="150" text-anchor="end" fill="#555" font-size="13">blend input; sole model if the CNN fails</text>
 
   <text x="10" y="160" fill="#1f4e8c" font-size="13">HTTP only: the dashboard never imports model code</text>
   <text x="10" y="182" fill="#b5541b" font-size="13">Offline, CPU only: no internet, no weather APIs</text>
