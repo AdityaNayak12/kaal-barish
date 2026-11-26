@@ -13,7 +13,7 @@ HERE = Path(__file__).resolve().parent
 CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 
 CSS = """
-@page { size: A4; margin: 12mm 14mm 11mm 14mm; }
+@page { size: A4; margin: 11mm 14mm 10mm 14mm; }
 body { font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; font-size: 11pt; line-height: 1.24;
        color: #111; margin: 0; }
 h1 { font-size: 17pt; margin: 0 0 1mm 0; color: #1f4e8c; }
