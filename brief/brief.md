@@ -1,8 +1,8 @@
 # Kaal Barish: a digital twin of India's weather
 
-<p class="byline">DevForge Track 2, "Multiverse of Monsoon" · Team Kaal Barish · github.com/AdityaNayak12/kaal-barish</p>
+<p class="byline">Sarthak Rawool, Aditya Nayak, Aditya Pawar · DevForge Track 2, "Multiverse of Monsoon" · github.com/AdityaNayak12/kaal-barish</p>
 
-**In two lines.** An offline, local residual-CNN digital twin of India's weather that rolls out 10 days stably.
+**USP.** An offline, local residual-CNN digital twin of India's weather that rolls out 10 days stably.
 A "what if" shock stays local on day 1 and then spreads at a physical pace, never jumping across the map.
 
 ## 1. Model design
@@ -12,18 +12,18 @@ the target day, static maps (land-sea mask, orography, lat/lon) and the day of y
 convolution, 3 residual blocks, width 64, all 3×3) predicts the next day, and the forecast is rolled out day by day.
 The 3×3 stack lets information move about 7 cells per day, so a shock cannot appear far away on day 1. We ship a
 2-member ensemble (r2 and r4: same recipe, different seed) whose rollouts are averaged, with output rain × 1.2
-(chosen on 2020) to catch heavy rain. Weights are 1.9 MB and run on CPU.
+(chosen on 2020) to catch heavy rain.
 
 **Preventing drift and blur.**
 (1) *Predict the change from today*, not the whole state; the output layer starts at zero, so an untrained step is
 persistence. (2) *Climatology as an input* (climatology minus today), so relaxing towards the seasonal normal is easy
 to learn and long rollouts do not wander off. (3) *Curriculum*: 1-step, then 4-step, then 8-step training rollouts,
 so the model learns from its own errors instead of blurring by day 8. (4) *Shock-response limiter*: a shocked run
-stays within 4.5 channel stds per cell of the unshocked run, every step. It stops rare rain blow-ups; unshocked and
-zero-shock forecasts are bit-identical to the plain model.
+stays within 4.5 channel stds per cell of the unshocked run, every step. It stops rare rain blow-ups and leaves
+unshocked forecasts bit-identical.
 
 **Honest validation.** Train 2005–2019; every choice (rain gain, ensemble members) made on 2020; 2021 as the check;
-2022 never used for anything (built with the kit's own dataset builder). Climatology and normalisation statistics
+2022 never used for anything. Climatology and normalisation statistics
 reproduce exactly from 2005–2019 alone. Local auto-score with the kit's scoring code, 40 windows per year:
 
 | part | val 2020 | test 2021 | held-out 2022 |
@@ -35,10 +35,10 @@ reproduce exactly from 2005–2019 alone. Local auto-score with the kit's scorin
 | **Auto total /85** | **81.99** | **83.31** | **82.94** |
 
 SS is skill against the better of persistence and climatology; against persistence alone at day 4 it is 0.25 (2021)
-and 0.22 (2022), and 1 of 40 windows loses. The judge scores only 5 windows and RMSE points are capped at the mean:
+and 0.22 (2022), and 1 of 40 windows loses in each year. The judge scores only 5 windows and RMSE points are capped at the mean:
 over 2000 random 5-window draws the expected RMSE + CSI is 38.7 / 40.3 / 40.1 of 45, so a **realistic total is about
 77–79 of 85**. No overfitting: r2 scores SS 0.130 / 0.140 on training years 2012 / 2017 vs 0.118 / 0.109 on
-2020 / 2021 (gap +0.021), and 2022 lands between 2020 and 2021.
+2020 / 2021 (gap +0.021), and 2022 lands between 2020 and 2021 (an independent re-run of 2022 gave 83.47 / 85).
 
 **Failure modes, stated openly.**
 
@@ -46,12 +46,13 @@ over 2000 random 5-window draws the expected RMSE + CSI is 38.7 / 40.3 / 40.1 of
   3 days; by day 8 the response has 3–9% of its day-1 energy. The kit's "propagates" check passes in 23% (DJF),
   32% (MAM), 53% (JJAS) and 44% (ON) of windows, vs 63 / 84 / 88 / 96% for the warm Bay of Bengal. Cause: the model
   is atmosphere-only, with no ocean or land memory, and −40% of weak winter winds (1–2 m/s) is a small kick.
-- **GroupNorm leak.** GroupNorm uses whole-grid statistics, so a shock leaks a little everywhere, and part of the
+- **GroupNorm leak.** GroupNorm's whole-grid statistics leak a little of any shock everywhere; part of the
   stall's far-field spread is this artefact: freezing the statistics drops its propagation to 8% (JJAS) and 3% (DJF).
   The ensemble cut the warm-ocean day-1 far leak (JJAS cells > 0.1 K beyond 7 cells) from about 60 to 7.
 - **Biases.** t2m is the weakest channel (2022 SS 0.087): 2021–22 ran 0.23–0.25 K above the 2005–2019 climatology
   and the model is 0.18 K cold at day 8 (a +0.5 K stress test costs only 0.002 SS). Rain is +0.5 mm/day wet, the
-  price of the 1.2 gain.
+  price of the 1.2 gain. Winter rain blurs: in DJF 2022 the day-8 rain field keeps 26% of the real spatial
+  variance (anti-blur bar 40%).
 - **Tried and rejected.** *Per-cell norm (r3)*: removed most of the leak but cut stall propagation from 0.37 to
   0.02 and lost 2.5 points on 2021. *Decaying forcing* (re-inject 0.7<sup>k+1</sup> × shock, chosen on 2020):
   +0.25 / 15 causality on 2020, +0.08 on 2021, stall still below target. *Third ensemble member*: 81.67 vs 81.99.
@@ -78,8 +79,10 @@ Every map is a fresh `/simulate` call on the running model; nothing is pre-rende
 
 ![Multiverse view: baseline, shocked and difference](img/multiverse.png)
 <p class="caption">Figure 2. Multiverse view for the warm Bay of Bengal (+3 K t2m, +15% water vapour in 8–20 N,
-82–94 E), day 5: baseline, shocked and their difference, animated with the day slider. A row of bars (cropped
-here) counts the cells changed on each day, so the spread is visible at a glance.</p>
+82–94 E), day 5: baseline, shocked and their difference, animated with the day slider. The difference shows more
+rain (red) along the north of the box, at the head of the Bay over the Odisha–Bangladesh coast and off Myanmar, and
+slightly less (blue) over the southern half of the box. A bar row (cropped here) counts cells whose rain changed by
+more than 0.5 mm/day: 520 on day 1, peaking at 629 on day 7.</p>
 
 <div class="row fig3" markdown="1">
 <div class="col-wide" markdown="1">
