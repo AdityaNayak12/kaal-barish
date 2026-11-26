@@ -5,7 +5,10 @@ the model loaded in memory (a 10-step rollout must return in under 5 s), return 
 Uses the CNN in model/rollout.py when assets/weights.pt loads, else the fallback in engine/baseline.py (CONTRACT.md).
 A rejected or invalid answer scores 0 for that window, so the server repairs what it can instead of refusing.
 """
-import argparse, sys
+import argparse, os, sys
+# Judge container: 4 CPUs on a bigger host. Older torch sizes its thread pools from the host's core count and
+# set_num_threads(4) alone left 3 s latency spikes, so cap the pools before numpy/torch load.
+os.environ.setdefault("OMP_NUM_THREADS", "4")
 from pathlib import Path
 import numpy as np
 import uvicorn
