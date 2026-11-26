@@ -4,7 +4,7 @@
 
 MSE training makes heavy rain (> 10 mm/day) too rare in individual windows, which costs CSI points. A single
 multiplicative gain on the rain output (not fed back into the rollout) trades a little rain RMSE for CSI; the
-gain with the best RMSE + CSI points on val + test (2020, 2021) is kept.
+gain with the best RMSE + CSI points on val (2020) is kept. 2021 (test) is only reported, never used to choose.
 """
 from __future__ import annotations
 import argparse
@@ -28,11 +28,10 @@ def main():
     for g in (float(x) for x in a.gains.split(",")):
         torch.save({**ck, "calib": {"rain_gain": g}}, tmp)
         R.WEIGHTS = tmp; R._state = None
-        pts = 0.0
-        for split in ("val", "test"):
-            o = evaluate(R.rollout, split, 5, n_shock=1, verbose=False, arch=arch)
-            pts += o["rmse_pts"] + o["csi_pts"]
-        print(f"gain {g}: rmse+csi points (val+test) {pts:.1f}")
+        o = evaluate(R.rollout, "val", 5, n_shock=1, verbose=False, arch=arch)
+        pts = o["rmse_pts"] + o["csi_pts"]
+        ot = evaluate(R.rollout, "test", 5, n_shock=1, verbose=False, arch=arch)
+        print(f"gain {g}: rmse+csi points val 2020 {pts:.1f} (selection) | test 2021 {ot['rmse_pts'] + ot['csi_pts']:.1f} (report only)")
         if best is None or pts > best[1]:
             best = (g, pts)
     tmp.unlink()
