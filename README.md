@@ -14,8 +14,10 @@ The dashboard puts both futures side by side on a live map.
 - **Model** (`model/`): a residual CNN that steps the standardised state forward one day at a time
   (rain goes through log1p first) and predicts the change from the previous day. Its receptive field is
   small, so a shock stays local on day 1 and spreads at a physical pace after that. It was trained on
-  rollouts of 1, 4 and then 8 steps. A rain output gain, tuned on 2020, improves heavy-rain detection.
-  A response limiter keeps a shocked run within 4.5 channel stds of the unshocked one.
+  rollouts of 1, 4 and then 8 steps. The shipped weights are a 2-member deterministic ensemble (r2 and
+  r4, the same recipe with a different seed) whose rollouts are averaged. A rain output gain, tuned on
+  2020, improves heavy-rain detection. A response limiter keeps a shocked run within 4.5 channel stds of
+  the unshocked one.
 - **Fallback** (`engine/baseline.py`): a per-cell linear regression of future anomalies against
   climatology, with neighbour smoothing. `serve.py` uses it if the CNN fails to load, and for any single
   request where the CNN fails or gives invalid output.
@@ -54,15 +56,17 @@ Install the kit wheel (`monsoon_r1`) from the same release to use the validator 
 ```bash
 .venv/bin/python -m train.build_assets                      # assets/clim.npy, static.npy, stats.json (2005-2019)
 .venv/bin/python -m train.train --out data/runs/r2.pt       # curriculum: 15 ep 1-step, 6 ep 4-step, 3 ep 8-step (batch 16)
-.venv/bin/python -m train.calibrate data/runs/r2.pt --out assets/weights.pt   # rain gain chosen on 2020 only (1.2)
+.venv/bin/python -m train.train --seed 1 --out data/runs/r4.pt                # second ensemble member, same recipe
+.venv/bin/python -m train.make_ensemble data/runs/r2.pt data/runs/r4.pt --out data/runs/ens.pt
+.venv/bin/python -m train.calibrate data/runs/ens.pt --out assets/weights.pt  # rain gain chosen on 2020 only (1.2)
 .venv/bin/python -m train.shock_report --weights assets/weights.pt          # per-shock causality checks, 2020 and 2021
 .venv/bin/python -m train.evaluate --split val              # kit scoring during training
+.venv/bin/python eval/fit_baseline.py                       # fallback coefficients -> assets/baseline.npz
+```
 
 The shipped r2 was trained in two runs (the first was stopped by low memory after the 4-step stage):
 `--stages 1:15,4:6`, then `--init <that checkpoint> --stages 8:3 --batch 16`. The default `--stages 1:15,4:6,8:3:16`
 is the same schedule in one run. Training is CPU-only (about 1 hour; peak RAM about 2 GB).
-.venv/bin/python eval/fit_baseline.py                       # fallback coefficients -> assets/baseline.npz
-```
 
 ## Run
 
@@ -79,17 +83,25 @@ is the same schedule in one run. Training is CPU-only (about 1 hour; peak RAM ab
 .venv/bin/python eval/test_serve.py                         # serve.py edge cases and fallback
 ```
 
-Local auto-score from `eval/score_local.py`. It uses the kit's scoring functions on 40 windows per year.
-The brief's 15 points are marked by hand.
+Local auto-score of the shipped ensemble from `eval/score_local.py` and `eval/drift_check.py`. They use the
+kit's scoring functions on 40 windows per year. 2020 was used to choose the model and 2021 to check it.
+2022 (built with the kit's own dataset builder) played no part in any choice, so it is the cleanest
+held-out estimate. The brief's 15 points are marked by hand.
 
-| part | val 2020 | test 2021 |
-|---|---|---|
-| Forecast RMSE skill /30 | 29.48 (SS 0.118) | 27.28 (SS 0.109) |
-| Heavy-rain CSI /15 | 12.98 | 14.46 |
-| Anti-blur /10 | 10.00 | 10.00 |
-| Perturbation causality /15 | 13.97 | 13.69 |
-| Repo scan /15 | 15.00 | 15.00 |
-| **Auto total /85** | **81.42** | **80.42** |
+| part | val 2020 | test 2021 | held-out 2022 |
+|---|---|---|---|
+| Forecast RMSE skill /30 | 30.00 (SS 0.132) | 30.00 (SS 0.123) | 30.00 (SS 0.129) |
+| Heavy-rain CSI /15 | 13.16 | 15.00 | 14.16 |
+| Anti-blur /10 | 10.00 | 10.00 | 10.00 |
+| Perturbation causality /15 | 13.83 | 13.31 | 13.78 |
+| Repo scan /15 | 15.00 | 15.00 | 15.00 |
+| **Auto total /85** | **81.99** | **83.31** | **82.94** |
+
+The judge scores only 5 windows, and the RMSE points are capped at the mean, so one weak window costs
+points. Over 2000 random 5-window draws, the expected RMSE + CSI points are 38.7 (2020), 40.3 (2021)
+and 40.1 (2022) of 45, so a realistic auto total is about 77 to 79 of 85.
 
 In a judge-like offline Docker run (`--network none`, 4 CPUs, 6 GB) from a fresh clone, `/health` was
-ready in 4 s, each 10-step call took under 0.3 s, and peak memory was about 250 MB.
+ready in 2.5 s and peak memory was about 330 MB. Each 10-step call took under 0.3 s of server time
+(under 0.5 s with torch 2.2). `serve.py` caps the CPU thread pools at 4. Without that cap, an older torch in a
+4-CPU container sized its pools from the host and some calls took over 4 s.
