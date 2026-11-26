@@ -56,12 +56,28 @@ def static_features(static: torch.Tensor) -> torch.Tensor:
                         lat[:, None].expand(H, W), lon[None, :].expand(H, W)])[None].float()
 
 
-class ResBlock(nn.Module):
+class PixelNorm(nn.Module):
+    """LayerNorm over channels at each grid cell: unlike GroupNorm it uses no statistics from other cells,
+    so a local shock cannot leak to distant cells through the normalisation."""
+
     def __init__(self, w: int):
+        super().__init__()
+        self.ln = nn.LayerNorm(w)
+
+    def forward(self, x):
+        return self.ln(x.permute(0, 2, 3, 1)).permute(0, 3, 1, 2)
+
+
+def make_norm(kind: str, w: int) -> nn.Module:
+    return PixelNorm(w) if kind == "pixel" else nn.GroupNorm(8, w)
+
+
+class ResBlock(nn.Module):
+    def __init__(self, w: int, norm: str = "group"):
         super().__init__()
         self.c1 = nn.Conv2d(w, w, 3, padding=1, padding_mode="replicate")
         self.c2 = nn.Conv2d(w, w, 3, padding=1, padding_mode="replicate")
-        self.n1 = nn.GroupNorm(8, w)
+        self.n1 = make_norm(norm, w)
         self.act = nn.GELU()
 
     def forward(self, x):
@@ -77,12 +93,12 @@ class StepNet(nn.Module):
     Output: z[t+1] = z_hist[:, -1] + increment.
     """
 
-    def __init__(self, width: int = 64, n_blocks: int = 3, n_static: int = 4):
+    def __init__(self, width: int = 64, n_blocks: int = 3, n_static: int = 4, norm: str = "group"):
         super().__init__()
         cin = T_IN * N_CH + N_CH + n_static + 2
         self.inp = nn.Conv2d(cin, width, 3, padding=1, padding_mode="replicate")
-        self.blocks = nn.Sequential(*[ResBlock(width) for _ in range(n_blocks)])
-        self.out = nn.Sequential(nn.GroupNorm(8, width), nn.GELU(), nn.Conv2d(width, N_CH, 1))
+        self.blocks = nn.Sequential(*[ResBlock(width, norm) for _ in range(n_blocks)])
+        self.out = nn.Sequential(make_norm(norm, width), nn.GELU(), nn.Conv2d(width, N_CH, 1))
         nn.init.zeros_(self.out[-1].weight); nn.init.zeros_(self.out[-1].bias)   # start as persistence
 
     def forward(self, z_hist, z_clim, static, doy):

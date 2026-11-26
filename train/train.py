@@ -2,7 +2,7 @@
 
   python -m train.train --out data/runs/r1.pt [--stages 1:15,4:8,8:5] [--split train]
 
-Each stage "S:E" trains E epochs on S-step autoregressive rollouts (loss averaged over the S steps).
+Each stage "S:E[:batch]" trains E epochs on S-step autoregressive rollouts (loss averaged over the S steps).
 Loss: latitude-weighted MSE in the standardised state space + a physical-rain term (tp / kit std) so heavy rain
 is not under-weighted by the log1p transform. After every stage the checkpoint is saved and scored on the val
 split with train/evaluate.py.
@@ -28,6 +28,7 @@ def main():
     ap.add_argument("--split", default="train")
     ap.add_argument("--stages", default="1:15,4:8,8:5")
     ap.add_argument("--width", type=int, default=64); ap.add_argument("--blocks", type=int, default=3)
+    ap.add_argument("--norm", default="pixel", choices=["pixel", "group"])
     ap.add_argument("--batch", type=int, default=32); ap.add_argument("--lr", type=float, default=1e-3)
     ap.add_argument("--rain-w", type=float, default=0.5); ap.add_argument("--threads", type=int, default=12)
     ap.add_argument("--max-batches", type=int, default=0, help="cap batches per epoch (0 = all; for smoke tests)")
@@ -51,10 +52,11 @@ def main():
     d0 = torch.from_numpy(np.asarray(times.day_of_year, "f8") % 365.0)     # what doy_from_sincos recovers
     W = lat_w()
 
-    cfg = {"width": a.width, "n_blocks": a.blocks, "n_static": stat.shape[1]}
+    cfg = {"width": a.width, "n_blocks": a.blocks, "n_static": stat.shape[1], "norm": a.norm}
     net = StepNet(**cfg)
     if a.init:
-        net.load_state_dict(torch.load(a.init, weights_only=True)["state_dict"])
+        ck = torch.load(a.init, weights_only=True)
+        cfg = {"norm": "group", **ck["config"]}; net = StepNet(**cfg); net.load_state_dict(ck["state_dict"])
     print(f"params {sum(p.numel() for p in net.parameters())/1e3:.0f}k, train days {m.sum()}")
     Path(a.out).parent.mkdir(parents=True, exist_ok=True)
 
@@ -72,15 +74,16 @@ def main():
         torch.save({"config": cfg, "state_dict": net.state_dict(), "mu": mu, "sd": sd}, path)
 
     for stage in a.stages.split(","):
-        S, E = (int(v) for v in stage.split(":"))
+        parts = [int(v) for v in stage.split(":")]           # S:E or S:E:batch
+        S, E = parts[0], parts[1]; bs = parts[2] if len(parts) > 2 else a.batch
         valid = np.array([i for i in range(2, len(times) - S) if m[i - 2:i + S + 1].all()])
-        nb = len(valid) // a.batch if not a.max_batches else min(a.max_batches, len(valid) // a.batch)
+        nb = len(valid) // bs if not a.max_batches else min(a.max_batches, len(valid) // bs)
         opt = torch.optim.AdamW(net.parameters(), lr=a.lr / (1 if S == 1 else 3), weight_decay=1e-4)
         sched = torch.optim.lr_scheduler.OneCycleLR(opt, max_lr=opt.param_groups[0]["lr"], total_steps=E * nb, pct_start=0.1)
         for ep in range(E):
             net.train(); perm = np.random.permutation(valid); tot = 0.0; t0 = time.time()
             for b in range(nb):
-                hist, zc, doy, tgt = batch(perm[b * a.batch:(b + 1) * a.batch], S)
+                hist, zc, doy, tgt = batch(perm[b * bs:(b + 1) * bs], S)
                 pred = net.rollout_z_grad(hist, zc, stat, doy)
                 loss = (((pred - tgt) ** 2) * W).mean()
                 if a.rain_w > 0:
