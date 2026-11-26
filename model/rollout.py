@@ -31,7 +31,9 @@ def _load():
         mu, sd = ck["mu"].float(), ck["sd"].float()
         clim = torch.from_numpy(np.load(ASSETS / "clim.npy").astype("f4"))
         static = torch.from_numpy(np.load(ASSETS / "static.npy").astype("f4"))
-        _state = {"net": net, "mu": mu, "sd": sd, "z_clim": to_z(clim, mu, sd), "static": static_features(static)}
+        rain_gain = float(ck.get("calib", {}).get("rain_gain", 1.0))   # output-only heavy-rain calibration
+        _state = {"net": net, "mu": mu, "sd": sd, "z_clim": to_z(clim, mu, sd), "static": static_features(static),
+                  "rain_gain": rain_gain}
         return _state
 
 
@@ -60,6 +62,6 @@ def rollout(init_states, doy_sincos, steps, perturbation=None) -> np.ndarray:
         y = from_z(out, st["mu"], st["sd"]).numpy().astype("f4")
 
     y = np.nan_to_num(y, nan=0.0, posinf=0.0, neginf=0.0)
-    y[:, 1] = np.maximum(y[:, 1], 0.0)
+    y[:, 1] = np.maximum(y[:, 1] * st["rain_gain"], 0.0)
     y[:, 0] = np.clip(y[:, 0], T_MIN, T_MAX)
     return y
