@@ -66,7 +66,7 @@ Install the kit wheel (`monsoon_r1`) from the same release to use the validator 
 
 The shipped r2 was trained in two runs (the first was stopped by low memory after the 4-step stage):
 `--stages 1:15,4:6`, then `--init <that checkpoint> --stages 8:3 --batch 16`. The default `--stages 1:15,4:6,8:3:16`
-is the same schedule in one run. Training is CPU-only (about 1 hour; peak RAM about 2 GB).
+is the same schedule in one run. Training is CPU-only (about 1 to 1.5 hours per model; peak memory about 2.8 GB working set, 3.4 GB committed).
 
 ## Run
 
