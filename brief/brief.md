@@ -31,16 +31,17 @@ Kit scoring, 40 windows per year:
 | Anti-blur /10 · Repo scan /15 | 10.00 · 15.00 | 10.00 · 15.00 | 10.00 · 15.00 |
 | **Auto total /85** | **81.99** | **83.31** | **82.94** |
 
-SS is skill vs the better of persistence and climatology. The judge scores only 5 windows and RMSE points are capped at the mean: over 2000
+SS is skill vs the better of persistence and climatology (vs persistence alone at day 4: 0.26 in 2021, 0.22 in 2022;
+1 of 40 windows loses each year). The judge scores only 5 windows and RMSE points are capped at the mean: over 2000
 random 5-window draws the expected RMSE + CSI is 39.5 / 41.2 / 40.7 of 45 (2020 / 2021 / 2022), so a **realistic
-total is about 78–80 of 85**. No clear sign of overfitting: r2's training years 2012 / 2017 score about 0.02 higher in skill
-(0.130 / 0.140 vs 0.118 / 0.109 on 2020 / 2021), under our 0.03 flag; heavy-rain skill shows a slight gap (+0.045). 2022 lands between 2020 and 2021 (scoring every day of 2022, 364 windows, gives 83.57 / 85).
+total is about 78–80 of 85**. No clear sign of overfitting: training years 2012 / 2017 score SS 0.151 / 0.158 vs
+0.141 / 0.130 / 0.135 on 2020–22 (gap +0.019; 2020 is the blend's fit year); heavy-rain skill shows a slight gap (+0.045). 2022 lands between 2020 and 2021 (scoring every day of 2022, 364 windows, gives 83.57 / 85).
 
 **Failure modes, stated openly.**
 
 - **The monsoon-stall shock fades.** After a one-off −40% wind kick, the day-8 response has 3–9% of its day-1 energy.
   The kit's "propagates" check passes in 23 / 32 / 53 / 44% of windows (DJF / MAM / JJAS / ON), vs 63 / 84 / 88 / 96%
-  for the warm Bay of Bengal. Cause: the model is atmosphere-only, with no ocean or land memory; outside the monsoon
+  for the warm Bay of Bengal. Cause: no ocean or land memory (atmosphere-only); outside the monsoon
   the kick only triggers a pressure adjustment (msl and v10 carry 66% of the late response in DJF) that decays in
   2–3 days, while in JJAS it changes rain (63%).
 - **GroupNorm leak.** GroupNorm's whole-grid statistics leak a little of any shock everywhere; most of the stall's
