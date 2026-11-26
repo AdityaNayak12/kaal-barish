@@ -34,8 +34,9 @@ def main():
     ap.add_argument("--max-batches", type=int, default=0, help="cap batches per epoch (0 = all; for smoke tests)")
     ap.add_argument("--init", default=None, help="start from this checkpoint")
     ap.add_argument("--no-eval", action="store_true")
+    ap.add_argument("--seed", type=int, default=0)
     a = ap.parse_args()
-    torch.manual_seed(0); np.random.seed(0); torch.set_num_threads(a.threads)
+    torch.manual_seed(a.seed); np.random.seed(a.seed); torch.set_num_threads(a.threads)
 
     arch = load_archive()
     data, times, static, _, _ = arch

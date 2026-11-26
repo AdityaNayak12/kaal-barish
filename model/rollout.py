@@ -94,7 +94,8 @@ def _limited_rollout(st, x, base, zc, doy_feat):
 
 
 def _finish(y: np.ndarray, rain_gain: float) -> np.ndarray:
-    y = np.nan_to_num(y, nan=0.0, posinf=0.0, neginf=0.0)
+    # NaN/Inf are deliberately left in place (clip/maximum keep NaN) so serve.py's validity gate can see a
+    # blow-up and fall back to the baseline for that request.
     y[:, 1] = np.maximum(y[:, 1] * rain_gain, 0.0)
     y[:, 0] = np.clip(y[:, 0], T_MIN, T_MAX)
     return y
