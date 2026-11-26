@@ -30,6 +30,9 @@ Same signature as model/rollout.py. serve.py uses rollout() if assets/weights.pt
 - Plain nested JSON lists, physical units. 10 steps must take < 5 s (target < 1 s).
 
 ## Dashboard backend (owner: sarthak)
-- GET /samples → list of {id, label, doy_sincos} (windows from the 2021 test set)
-- GET /samples/{id} → {init_states [3,6,32,36], doy_sincos, truth [10,6,32,36]}
+- python dashboard/backend/app.py --port 8001
+- GET /samples → list of {id, label, kind, last_input_day, doy_sincos} (windows from the 2021 test set)
+- GET /samples/{id} → {id, label, init_states [3,6,32,36], doy_sincos, truth [10,6,32,36], truth_days [10]}
+- GET /grid → {lat [32], lon [36], land_mask [32][36] (0/1)}
+- POST /simulate and POST /health are passed through unchanged to the model server (MODEL_SERVER, default http://localhost:8000)
 - Calls the model server's /simulate for every forecast shown. Nothing pre-rendered.
