@@ -98,7 +98,7 @@ held-out estimate. The brief's 15 points are marked by hand.
 | **Auto total /85** | **81.99** | **83.31** | **82.94** |
 
 The judge scores only 5 windows, and the RMSE points are capped at the mean, so one weak window costs
-points. Over 2000 random 5-window draws, the expected RMSE + CSI points are 38.7 (2020), 40.3 (2021)
+points. Over 2000 random 5-window draws, the expected RMSE + CSI points are 38.6 (2020), 40.3 (2021)
 and 40.1 (2022) of 45, so a realistic auto total is about 77 to 79 of 85.
 
 In a judge-like offline Docker run (`--network none`, 4 CPUs, 6 GB) from a fresh clone, `/health` was
