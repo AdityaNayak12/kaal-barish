@@ -53,9 +53,14 @@ Install the kit wheel (`monsoon_r1`) from the same release to use the validator 
 
 ```bash
 .venv/bin/python -m train.build_assets                      # assets/clim.npy, static.npy, stats.json (2005-2019)
-.venv/bin/python -m train.train --out data/runs/r2.pt       # curriculum 1-, 4-, 8-step rollouts (--stages 1:15,4:8,8:5)
-.venv/bin/python -m train.calibrate data/runs/r2.pt --out assets/weights.pt   # rain gain chosen on 2020
+.venv/bin/python -m train.train --out data/runs/r2.pt       # curriculum: 15 ep 1-step, 6 ep 4-step, 3 ep 8-step (batch 16)
+.venv/bin/python -m train.calibrate data/runs/r2.pt --out assets/weights.pt   # rain gain chosen on 2020 only (1.2)
+.venv/bin/python -m train.shock_report --weights assets/weights.pt          # per-shock causality checks, 2020 and 2021
 .venv/bin/python -m train.evaluate --split val              # kit scoring during training
+
+The shipped r2 was trained in two runs (the first was stopped by low memory after the 4-step stage):
+`--stages 1:15,4:6`, then `--init <that checkpoint> --stages 8:3 --batch 16`. The default `--stages 1:15,4:6,8:3:16`
+is the same schedule in one run. Training is CPU-only (about 1 hour; peak RAM about 2 GB).
 .venv/bin/python eval/fit_baseline.py                       # fallback coefficients -> assets/baseline.npz
 ```
 

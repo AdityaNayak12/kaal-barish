@@ -1,6 +1,6 @@
 """Train the residual CNN (model/net.py) with a curriculum of rollout lengths.
 
-  python -m train.train --out data/runs/r1.pt [--stages 1:15,4:8,8:5] [--split train]
+  python -m train.train --out data/runs/r1.pt [--stages 1:15,4:6,8:3:16] [--split train]
 
 Each stage "S:E[:batch]" trains E epochs on S-step autoregressive rollouts (loss averaged over the S steps).
 Loss: latitude-weighted MSE in the standardised state space + a physical-rain term (tp / kit std) so heavy rain
@@ -26,7 +26,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", default="data/runs/r1.pt")
     ap.add_argument("--split", default="train")
-    ap.add_argument("--stages", default="1:15,4:8,8:5")
+    ap.add_argument("--stages", default="1:15,4:6,8:3:16")
     ap.add_argument("--width", type=int, default=64); ap.add_argument("--blocks", type=int, default=3)
     ap.add_argument("--norm", default="pixel", choices=["pixel", "group"])
     ap.add_argument("--batch", type=int, default=32); ap.add_argument("--lr", type=float, default=1e-3)
