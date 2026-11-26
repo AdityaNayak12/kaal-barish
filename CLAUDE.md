@@ -24,7 +24,7 @@ Shared files (CONTRACT.md, CLAUDE.md, README.md, requirements.txt, .gitignore, .
   - NO training code (.backward(), optimizer.step, .fit()) — that lives in train/ only
 - Never commit .nc / .grib / .zarr files or raw data. data/ is gitignored.
 - No saved array shaped [>400, ..., 32, 36] in the repo (counts as a weather archive). A 366-day climatology is fine.
-- Weights go in assets/ via Git LFS (*.pt). Repo must stay under 2 GB.
+- weights.pt is committed as a plain file, not LFS (judges may clone without git-lfs). Repo must stay under 2 GB.
 - Inference must be deterministic: the same input gives exactly the same output (null shock test).
 - Output must be finite, rain >= 0, t2m within 233.15–333.15 K.
 - The dashboard only talks to the server over HTTP; it never imports server code.

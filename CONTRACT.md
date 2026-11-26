@@ -10,7 +10,7 @@
 - stats.json — copy of the kit file (per-channel mean, std)
 - clim.npy — float32 [366, 6, 32, 36] day-of-year climatology, physical units
 - static.npy — float32 [2, 32, 36] land_sea_mask, orography_m
-- weights.pt — CNN weights (Git LFS)
+- weights.pt — CNN weights (plain git file, not LFS)
 - baseline.npz — fallback model coefficients (owner: nayak)
 
 ## model/rollout.py (owner: pawar)
