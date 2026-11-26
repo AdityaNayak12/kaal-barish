@@ -1,7 +1,8 @@
 """Inference entry point (see CONTRACT.md, model/rollout.py section).
 
 Loads assets/weights.pt, assets/clim.npy and assets/static.npy once, on the first call. Never reads data/.
-Deterministic: CPU, no dropout, no sampling.
+Deterministic: CPU, no dropout, no sampling. weights.pt holds one checkpoint or a small deterministic
+ensemble ("members"), whose rollouts are averaged.
 """
 from __future__ import annotations
 from pathlib import Path
@@ -30,19 +31,22 @@ def _load():
         if _state is not None:
             return _state
         ck = torch.load(WEIGHTS, map_location="cpu", weights_only=True)
-        net = StepNet(**ck["config"])
-        net.load_state_dict(ck["state_dict"])
-        net.eval()
-        mu, sd = ck["mu"].float(), ck["sd"].float()
         clim = torch.from_numpy(np.load(ASSETS / "clim.npy").astype("f4"))
         static = torch.from_numpy(np.load(ASSETS / "static.npy").astype("f4"))
+        members = []
+        for m in ck.get("members", [ck]):
+            net = StepNet(**m["config"])
+            net.load_state_dict(m["state_dict"])
+            net.eval()
+            mu, sd = m["mu"].float(), m["sd"].float()
+            members.append({"net": net, "mu": mu, "sd": sd, "z_clim": to_z(clim, mu, sd)})
         calib = ck.get("calib", {})
         rain_gain = float(calib.get("rain_gain", 1.0))                  # output-only heavy-rain calibration
         kit_std = torch.tensor(json.loads((ASSETS / "stats.json").read_text())["std"], dtype=torch.float32)
         lim = float(calib.get("resp_limit", RESP_LIMIT)) * kit_std
         lim[1] = lim[1] / rain_gain                                       # limit applies after the rain gain
-        _state = {"net": net, "mu": mu, "sd": sd, "z_clim": to_z(clim, mu, sd), "static": static_features(static),
-                  "rain_gain": rain_gain, "lim": lim[:, None, None]}
+        _state = {"members": members, "static": static_features(static), "rain_gain": rain_gain,
+                  "lim": lim[:, None, None]}
         return _state
 
 
@@ -65,23 +69,26 @@ def rollout(init_states, doy_sincos, steps, perturbation=None) -> np.ndarray:
     d0 = doy_from_sincos(float(doy_sincos[0]), float(doy_sincos[1]))
     rows = clim_rows(d0, steps)
     doy_feat = doy_features(torch.tensor([d0 + k for k in range(1, steps + 1)], dtype=torch.float64)).float()
-    zc = st["z_clim"][rows][None]
 
+    ys = []
     with torch.inference_mode():
-        base = from_z(st["net"].rollout_z(to_z(torch.from_numpy(x), st["mu"], st["sd"])[None], zc, st["static"],
-                                          doy_feat[None])[0], st["mu"], st["sd"])
-        if pert is None:
-            y = base
-        else:
-            xs = x.copy(); xs[-1] = xs[-1] + pert
-            y = _limited_rollout(st, xs, base, zc, doy_feat)
+        for m in st["members"]:
+            zc = m["z_clim"][rows][None]
+            base = from_z(m["net"].rollout_z(to_z(torch.from_numpy(x), m["mu"], m["sd"])[None], zc, st["static"],
+                                             doy_feat[None])[0], m["mu"], m["sd"])
+            if pert is None:
+                ys.append(base)
+            else:
+                xs = x.copy(); xs[-1] = xs[-1] + pert
+                ys.append(_limited_rollout(m, st, xs, base, zc, doy_feat))
+        y = ys[0] if len(ys) == 1 else torch.stack(ys).mean(0)
 
     return _finish(y.numpy().astype("f4"), st["rain_gain"])
 
 
-def _limited_rollout(st, x, base, zc, doy_feat):
+def _limited_rollout(m, st, x, base, zc, doy_feat):
     """Perturbed rollout whose per-step state stays within +-lim of the unperturbed one (physical units)."""
-    net, mu, sd, lim = st["net"], st["mu"], st["sd"], st["lim"]
+    net, mu, sd, lim = m["net"], m["mu"], m["sd"], st["lim"]
     z = to_z(torch.from_numpy(x), mu, sd)[None]
     outs = []
     for k in range(base.shape[0]):
