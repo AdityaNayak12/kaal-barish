@@ -24,6 +24,9 @@ rollout(init_states, doy_sincos, steps, perturbation) -> np.ndarray
 ## engine/baseline.py (owner: nayak)
 Same signature as model/rollout.py. serve.py uses rollout() if assets/weights.pt loads and its warm-up rollout is finite, else baseline (logged to stderr).
 
+## engine/blend.py (owner: nayak)
+blend(cnn, base, doy_sincos) -> [steps, 6, 32, 36]: post-processes the CNN's unperturbed rollout. For t2m, u10, msl, tcwv: clim + a * (cnn - clim) + b * (baseline - clim), weights per lead in engine/blend.json (eval/fit_blend.py, fitted on 2020 only). Rain and v10 are untouched. With a perturbation, serve.py returns the blended base + (CNN shocked - CNN base), so shock responses are the CNN's. If the blend fails, serve.py returns the plain CNN.
+
 ## Server API (owner: nayak) — python serve.py --port 8000, host 0.0.0.0
 - POST /health → {"status": "ready", "model_name": str}
 - POST /simulate {init_states, doy_sincos, steps, perturbation|null} → {"rollout": [steps,6,32,36], "inference_ms": float}

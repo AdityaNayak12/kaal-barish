@@ -3,9 +3,10 @@
 Rules: listen on 0.0.0.0 (not 127.0.0.1), load weights from files next to this one (there is no internet), keep
 the model loaded in memory (a 10-step rollout must return in under 5 s), return finite numbers in physical units.
 Uses the CNN in model/rollout.py when assets/weights.pt loads, else the fallback in engine/baseline.py (CONTRACT.md).
+The CNN's unperturbed forecast is blended with the fallback's (engine/blend.py); a shock adds the CNN's own response.
 A rejected or invalid answer scores 0 for that window, so the server repairs what it can instead of refusing.
 """
-import argparse, os, sys
+import argparse, hashlib, os, sys
 # Judge container: 4 CPUs on a bigger host. Older torch sizes its thread pools from the host's core count and
 # set_num_threads(4) alone left 3 s latency spikes, so cap the pools before numpy/torch load.
 os.environ.setdefault("OMP_NUM_THREADS", "4")
@@ -14,6 +15,7 @@ import numpy as np
 import uvicorn
 from fastapi import FastAPI, HTTPException, Request
 from engine.baseline import rollout as baseline
+from engine.blend import blend
 
 app = FastAPI()
 SHAPE = (6, 32, 36)
@@ -74,13 +76,40 @@ def simulate(init_states: np.ndarray, doy_sincos, steps: int, perturbation) -> n
             perturbation = None                                        # all-zeros = null shock: identical to no shock
     if rollout is not baseline:
         try:
-            out = np.asarray(rollout(init_states, doy_sincos, steps, perturbation), dtype="f4")
-            if _valid(out, steps):
-                return out
+            cnn, out = _unperturbed(init_states, doy_sincos, steps)
+            if perturbation is None:
+                return out.copy()
+            shocked = np.asarray(rollout(init_states, doy_sincos, steps, perturbation), dtype="f4")
+            if _valid(shocked, steps):
+                out = out + (shocked - cnn)                            # the CNN's own shock response on the blended base
+                out[:, 1] = shocked[:, 1]                              # rain is not blended: keep it bit-identical
+                if _valid(out, steps):
+                    return out
             print("CNN output invalid, baseline used for this request", file=sys.stderr)
         except Exception as e:
             print(f"CNN failed ({type(e).__name__}: {str(e)[:200]}), baseline used for this request", file=sys.stderr)
     return np.asarray(baseline(init_states, doy_sincos, steps, perturbation), dtype="f4")
+
+
+_RECENT = {}                                                           # last unperturbed runs, so a shock call reuses its base
+
+
+def _unperturbed(init_states, doy_sincos, steps):
+    """(CNN rollout, blended rollout) without perturbation. Raises if the CNN output is invalid."""
+    key = (hashlib.sha1(init_states.tobytes()).hexdigest(), tuple(float(v) for v in doy_sincos), int(steps))
+    if key not in _RECENT:
+        cnn = np.asarray(rollout(init_states, doy_sincos, steps, None), dtype="f4")
+        if not _valid(cnn, steps):
+            raise ValueError("invalid unperturbed CNN rollout")
+        try:
+            out = blend(cnn, np.asarray(baseline(init_states, doy_sincos, steps, None), dtype="f4"), doy_sincos)
+        except Exception as e:                                         # the post-processing must never cost the CNN
+            print(f"blend failed ({type(e).__name__}: {str(e)[:200]}), plain CNN used", file=sys.stderr)
+            out = cnn
+        if len(_RECENT) >= 8:
+            _RECENT.pop(next(iter(_RECENT)))
+        _RECENT[key] = (cnn, out if _valid(out, steps) else cnn)
+    return _RECENT[key]
 
 
 @app.post("/health")

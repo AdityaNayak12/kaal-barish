@@ -20,7 +20,9 @@ The dashboard puts both futures side by side on a live map.
   the unshocked one.
 - **Fallback** (`engine/baseline.py`): a per-cell linear regression of future anomalies against
   climatology, with neighbour smoothing. `serve.py` uses it if the CNN fails to load, and for any single
-  request where the CNN fails or gives invalid output.
+  request where the CNN fails or gives invalid output. It also sharpens the CNN at long leads: `engine/blend.py`
+  mixes the two unperturbed forecasts for t2m, u10, msl and tcwv with per-lead weights fitted on 2020
+  (mostly days 4 to 10). Rain and v10 stay the CNN's, and a shock adds the CNN's own response unchanged.
 - **Server** (`serve.py`): FastAPI, offline, CPU only. It loads and warms up both models before it
   starts listening, so `/health` only answers once it is ready.
 - **Dashboard** (`dashboard/`): React + Leaflet frontend and a small backend that serves the 2021 sample
@@ -32,6 +34,7 @@ The dashboard puts both futures side by side on a live map.
 serve.py              inference server (POST /health, POST /simulate)
 model/                CNN definition (net.py) and inference entry point (rollout.py)
 engine/baseline.py    fallback model
+engine/blend.py       blend of the CNN with the fallback (weights in engine/blend.json)
 assets/               weights.pt (plain git file), clim.npy, static.npy, stats.json, baseline.npz
 train/                data access, asset building, training, calibration, evaluation
 eval/                 local score harness, judge request replay, server self-check, submission precheck
@@ -62,6 +65,7 @@ Install the kit wheel (`monsoon_r1`) from the same release to use the validator 
 .venv/bin/python -m train.shock_report --weights assets/weights.pt          # per-shock causality checks, 2020 and 2021
 .venv/bin/python -m train.evaluate --split val              # kit scoring during training
 .venv/bin/python eval/fit_baseline.py                       # fallback coefficients -> assets/baseline.npz
+.venv/bin/python eval/fit_blend.py                          # blend weights (2020 only) -> engine/blend.json; --check vs the plain CNN
 ```
 
 The shipped r2 was trained in two runs (the first was stopped by low memory after the 4-step stage):
@@ -90,7 +94,7 @@ held-out estimate. The brief's 15 points are marked by hand.
 
 | part | val 2020 | test 2021 | held-out 2022 |
 |---|---|---|---|
-| Forecast RMSE skill /30 | 30.00 (SS 0.132) | 30.00 (SS 0.123) | 30.00 (SS 0.129) |
+| Forecast RMSE skill /30 | 30.00 (SS 0.141) | 30.00 (SS 0.130) | 30.00 (SS 0.135) |
 | Heavy-rain CSI /15 | 13.16 | 15.00 | 14.16 |
 | Anti-blur /10 | 10.00 | 10.00 | 10.00 |
 | Perturbation causality /15 | 13.83 | 13.31 | 13.78 |
@@ -98,8 +102,8 @@ held-out estimate. The brief's 15 points are marked by hand.
 | **Auto total /85** | **81.99** | **83.31** | **82.94** |
 
 The judge scores only 5 windows, and the RMSE points are capped at the mean, so one weak window costs
-points. Over 2000 random 5-window draws, the expected RMSE + CSI points are 38.7 (2020), 40.3 (2021)
-and 40.1 (2022) of 45, so a realistic auto total is about 77 to 79 of 85.
+points. Over 2000 random 5-window draws, the expected RMSE + CSI points are 39.5 (2020), 41.2 (2021)
+and 40.7 (2022) of 45, so a realistic auto total is about 78 to 80 of 85.
 
 In a judge-like offline Docker run (`--network none`, 4 CPUs, 6 GB) from a fresh clone, `/health` was
 ready in 2.5 s and peak memory was about 330 MB. Each 10-step call took under 0.3 s of server time
