@@ -1,7 +1,8 @@
 """Sample windows for the dashboard, taken from the 2021 test year of data/india_climate_train.nc.
 
 Each sample is 3 input days (init_states) and the 10 true days that follow (truth).
-The raw data stays in data/ (gitignored); nothing here is saved to the repo.
+The full data stays in data/ (gitignored). Without it (a fresh clone), the store reads samples.npz next to this file:
+only the 120 days these 10 windows need, written by eval/make_dashboard_samples.py.
 """
 import math
 from pathlib import Path
@@ -12,6 +13,7 @@ import xarray as xr
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DATA_FILE = REPO_ROOT / "data" / "india_climate_train.nc"
+BUNDLE = Path(__file__).resolve().parent / "samples.npz"  # only the 10 windows' days (eval/make_dashboard_samples.py)
 
 INPUT_DAYS = 3
 TRUTH_DAYS = 10
@@ -53,6 +55,13 @@ class SampleStore:
     """Loads the 2021 part of the dataset once and cuts windows out of it."""
 
     def __init__(self, data_file=DATA_FILE):
+        if not data_file.exists() and BUNDLE.exists():  # fresh clone without data/: use the bundled windows
+            z = np.load(BUNDLE)
+            self.days = pd.to_datetime(z["days"])
+            self.values = z["values"]
+            self.lat, self.lon = z["lat"].tolist(), z["lon"].tolist()
+            self.land_mask = z["land_mask"].astype(int).tolist()
+            return
         if not data_file.exists():
             raise FileNotFoundError(
                 f"{data_file} not found. Download india_climate_train.nc from the kit release into data/."
