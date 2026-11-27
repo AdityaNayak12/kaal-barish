@@ -8,18 +8,21 @@ The dashboard talks to the server over HTTP only and never imports server code.
 
 ```
 browser (5173)  ->  dashboard backend (8001)  ->  model server serve.py (8000)
-                    /samples, /grid from data/     /simulate, /health
+                    /samples, /grid                /simulate, /health
 ```
 
 ## Run
 
-From the repo root, with the kit data in `data/` (`india_climate_train.nc`, gitignored):
+From the repo root. The kit data in `data/` (`india_climate_train.nc`, gitignored) is optional.
+
+Without data/, the backend serves the 10 sample windows from dashboard/backend/samples.npz (modified ERA5, Copernicus Climate Change Service, CC BY 4.0; rebuild with python eval/make_dashboard_samples.py).
+samples.npz holds the 10 demo windows (120 days of the provided 2021 data) for the dashboard only; serve.py never reads it.
 
 ```bash
 # 1. model server
 .venv/bin/python serve.py --port 8000
 
-# 2. dashboard backend (reads data/, passes /simulate on to port 8000)
+# 2. dashboard backend (reads data/ or samples.npz, passes /simulate on to port 8000)
 .venv/bin/python dashboard/backend/app.py --port 8001
 
 # 3. frontend
@@ -53,7 +56,7 @@ Settings:
 `backend/samples.py` lists 10 windows from 2021 (the test year): cyclones Tauktae, Yaas and Gulab,
 two June heatwaves, the June monsoon surge, the July rain peak, the October Kerala and Uttarakhand rain,
 and two winter cold spells. Each one is 3 input days plus the 10 true days that follow, cut from
-`data/india_climate_train.nc` at start-up. No data is copied into the repo.
+`data/india_climate_train.nc` at start-up, or from `backend/samples.npz` when `data/` is missing.
 
 ## Note for the repo scan
 
