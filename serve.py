@@ -83,6 +83,7 @@ def simulate(init_states: np.ndarray, doy_sincos, steps: int, perturbation) -> n
             if _valid(shocked, steps):
                 out = out + (shocked - cnn)                            # the CNN's own shock response on the blended base
                 out[:, 1] = shocked[:, 1]                              # rain is not blended: keep it bit-identical
+                out[:, 0] = np.clip(out[:, 0], 233.15, 333.15)         # same t2m bounds as the CNN; else a huge shock hits the baseline
                 if _valid(out, steps):
                     return out
             print("CNN output invalid, baseline used for this request", file=sys.stderr)

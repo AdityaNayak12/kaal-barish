@@ -25,6 +25,10 @@ if serve.MODEL_NAME == "kaal-barish-cnn":                              # blend: 
     assert (np.abs(shocked - base - d_cnn) / std[:, None, None]).max() < 1e-4, "shock response changed"
     serve._RECENT.clear()
     assert np.array_equal(shocked, serve.simulate(x, doy, 10, pert)), "shock result depends on call order"
+    hot = np.zeros(serve.SHAPE, "f4"); hot[0, 10:20, 20:30] = 60.0     # extreme dashboard input must not fall back
+    out = serve.simulate(x, doy, 10, hot)
+    d_hot = serve.rollout(x, doy, 10, hot) - serve.rollout(x, doy, 10, None)
+    assert serve._valid(out, 10) and np.array_equal((out - base)[:, 1], d_hot[:, 1]), "extreme shock fell back to the baseline"
 
 serve._RECENT.clear()                                                  # force a request-time CNN failure
 cnn = serve.rollout
